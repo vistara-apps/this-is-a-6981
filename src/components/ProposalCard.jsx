@@ -1,26 +1,31 @@
-import React from 'react'
-import { Clock, Users, Calendar, ThumbsUp, ThumbsDown } from 'lucide-react'
-import { useWallet } from '../context/WalletContext'
-import VoteButton from './VoteButton'
+import React from 'react';
+import { Clock, Calendar, ThumbsUp, ThumbsDown, User } from 'lucide-react';
+import { useWallet } from '../context/WalletContext';
+import { useProposals } from '../context/ProposalContext';
+import VoteButton from './VoteButton';
+import Button from './Button';
 
-const ProposalCard = ({ proposal, onVote }) => {
-  const { isConnected, publicKey } = useWallet()
+const ProposalCard = ({ proposal, onVote, onClose }) => {
+  const { isConnected, publicKey } = useWallet();
+  const { formatDate, hasVoted: checkHasVoted } = useProposals();
   
-  const totalVotes = proposal.yesVotes + proposal.noVotes
-  const yesPercentage = totalVotes > 0 ? (proposal.yesVotes / totalVotes) * 100 : 0
-  const noPercentage = totalVotes > 0 ? (proposal.noVotes / totalVotes) * 100 : 0
+  const totalVotes = proposal.yesVotes + proposal.noVotes;
+  const yesPercentage = totalVotes > 0 ? (proposal.yesVotes / totalVotes) * 100 : 0;
+  const noPercentage = totalVotes > 0 ? (proposal.noVotes / totalVotes) * 100 : 0;
   
-  const hasVoted = proposal.voters && proposal.voters.includes(publicKey)
-  const canVote = isConnected && proposal.status === 'active' && !hasVoted
+  const hasVoted = checkHasVoted ? checkHasVoted(proposal.id) : 
+    (proposal.voters && proposal.voters.some(voter => 
+      typeof voter === 'string' ? voter === publicKey : voter.publicKey === publicKey
+    ));
+    
+  const canVote = isConnected && proposal.status === 'active' && !hasVoted;
+  const isActive = proposal.status === 'active';
 
-  const formatDate = (timestamp) => {
-    return new Date(timestamp).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  }
+  // Format the proposer address for display
+  const formatAddress = (address) => {
+    if (!address) return '';
+    return `${address.slice(0, 4)}...${address.slice(-4)}`;
+  };
 
   return (
     <div className="card p-6 space-y-4 hover:shadow-xl transition-all duration-300">
@@ -30,20 +35,57 @@ const ProposalCard = ({ proposal, onVote }) => {
           <div className="flex items-center gap-3 mb-2">
             <h3 className="text-xl font-semibold text-text-primary">{proposal.title}</h3>
             <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-              proposal.status === 'active' 
+              isActive 
                 ? 'bg-green-400/20 text-green-400' 
                 : 'bg-gray-400/20 text-gray-400'
             }`}>
-              {proposal.status}
+              {isActive ? 'Active' : 'Closed'}
             </div>
           </div>
-          <p className="text-text-secondary text-sm leading-relaxed">{proposal.description}</p>
+          <p className="text-text-secondary text-sm leading-relaxed line-clamp-3">{proposal.description}</p>
+          
+          <div className="mt-2 flex items-center text-xs text-text-secondary">
+            <User className="w-3 h-3 mr-1" />
+            <span>Proposed by {formatAddress(proposal.proposer)}</span>
+          </div>
         </div>
         
         {canVote && (
           <div className="flex gap-2 flex-shrink-0">
-            <VoteButton variant="yes" onClick={() => onVote('yes')} />
-            <VoteButton variant="no" onClick={() => onVote('no')} />
+            <VoteButton 
+              variant="yes" 
+              onClick={() => onVote(proposal, 'yes')} 
+              count={proposal.yesVotes}
+            />
+            <VoteButton 
+              variant="no" 
+              onClick={() => onVote(proposal, 'no')} 
+              count={proposal.noVotes}
+            />
+          </div>
+        )}
+        
+        {!canVote && isActive && (
+          <div className="flex gap-2 flex-shrink-0">
+            <Button 
+              variant="secondary" 
+              size="sm"
+              onClick={() => onVote(proposal)}
+            >
+              View Details
+            </Button>
+          </div>
+        )}
+        
+        {!isActive && onClose && (
+          <div className="flex gap-2 flex-shrink-0">
+            <Button 
+              variant="secondary" 
+              size="sm"
+              onClick={() => onClose(proposal.id)}
+            >
+              Close Proposal
+            </Button>
           </div>
         )}
       </div>
@@ -52,7 +94,7 @@ const ProposalCard = ({ proposal, onVote }) => {
       <div className="space-y-3">
         <div className="flex items-center justify-between text-sm">
           <span className="text-text-secondary">Vote Results</span>
-          <span className="text-text-secondary">{totalVotes} total votes</span>
+          <span className="text-text-secondary">{totalVotes.toLocaleString()} total votes</span>
         </div>
         
         <div className="space-y-2">
@@ -68,8 +110,11 @@ const ProposalCard = ({ proposal, onVote }) => {
                 style={{ width: `${yesPercentage}%` }}
               />
             </div>
-            <span className="text-sm font-medium text-text-primary w-12 text-right">
-              {proposal.yesVotes}
+            <span className="text-sm font-medium text-text-primary w-16 text-right">
+              {proposal.yesVotes.toLocaleString()} 
+              <span className="text-text-secondary text-xs ml-1">
+                ({yesPercentage.toFixed(1)}%)
+              </span>
             </span>
           </div>
           
@@ -85,8 +130,11 @@ const ProposalCard = ({ proposal, onVote }) => {
                 style={{ width: `${noPercentage}%` }}
               />
             </div>
-            <span className="text-sm font-medium text-text-primary w-12 text-right">
-              {proposal.noVotes}
+            <span className="text-sm font-medium text-text-primary w-16 text-right">
+              {proposal.noVotes.toLocaleString()}
+              <span className="text-text-secondary text-xs ml-1">
+                ({noPercentage.toFixed(1)}%)
+              </span>
             </span>
           </div>
         </div>
@@ -99,10 +147,15 @@ const ProposalCard = ({ proposal, onVote }) => {
             <Calendar className="w-4 h-4" />
             <span>Created {formatDate(proposal.createdAt)}</span>
           </div>
-          {proposal.status === 'active' && (
+          {isActive ? (
             <div className="flex items-center gap-1">
               <Clock className="w-4 h-4" />
               <span>Ends {formatDate(proposal.endTime)}</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1">
+              <Clock className="w-4 h-4" />
+              <span>Ended {formatDate(proposal.endTime)}</span>
             </div>
           )}
         </div>
@@ -113,14 +166,14 @@ const ProposalCard = ({ proposal, onVote }) => {
           </div>
         )}
         
-        {!isConnected && proposal.status === 'active' && (
+        {!isConnected && isActive && (
           <div className="text-sm text-text-secondary">
             Connect wallet to vote
           </div>
         )}
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default ProposalCard
+export default ProposalCard;
