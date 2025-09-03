@@ -1,57 +1,58 @@
-import React from 'react'
-import { Wallet, LogOut, Copy } from 'lucide-react'
-import { useWallet } from '../context/WalletContext'
+import React, { useState } from 'react';
+import { Wallet, LogOut, Copy, Loader2 } from 'lucide-react';
+import { useWallet } from '../context/WalletContext';
+import Button from './Button';
 
 const WalletConnector = () => {
-  const { isConnected, publicKey, connect, disconnect } = useWallet()
-
-  const formatPublicKey = (key) => {
-    if (!key) return ''
-    return `${key.slice(0, 4)}...${key.slice(-4)}`
-  }
+  const { isConnected, isConnecting, publicKey, connect, disconnect, formatAddress } = useWallet();
+  const [copied, setCopied] = useState(false);
 
   const copyToClipboard = () => {
     if (publicKey) {
-      navigator.clipboard.writeText(publicKey)
+      navigator.clipboard.writeText(publicKey);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
-  }
+  };
 
   if (isConnected) {
     return (
       <div className="flex items-center space-x-3">
-        <div className="card px-3 py-2 flex items-center space-x-2">
+        <div className="bg-surface/50 px-3 py-2 rounded-lg flex items-center space-x-2 border border-surface/80">
           <div className="w-2 h-2 bg-green-400 rounded-full"></div>
           <span className="text-sm font-mono text-text-secondary">
-            {formatPublicKey(publicKey)}
+            {formatAddress(publicKey)}
           </span>
           <button
             onClick={copyToClipboard}
-            className="p-1 hover:bg-surface/50 rounded transition-colors"
-            title="Copy address"
+            className="p-1 hover:bg-surface/80 rounded-full transition-colors"
+            title={copied ? "Copied!" : "Copy address"}
           >
-            <Copy className="w-3 h-3" />
+            <Copy className={`w-3 h-3 ${copied ? 'text-green-400' : 'text-text-secondary'}`} />
           </button>
         </div>
-        <button
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={disconnect}
-          className="btn-secondary px-3 py-2 rounded-lg flex items-center space-x-2 text-sm"
+          leftIcon={<LogOut />}
         >
-          <LogOut className="w-4 h-4" />
           <span className="hidden sm:inline">Disconnect</span>
-        </button>
+        </Button>
       </div>
-    )
+    );
   }
 
   return (
-    <button
+    <Button
+      variant="primary"
       onClick={connect}
-      className="btn-primary px-4 py-2 rounded-lg flex items-center space-x-2 text-white font-medium"
+      loading={isConnecting}
+      leftIcon={<Wallet />}
     >
-      <Wallet className="w-4 h-4" />
-      <span>Connect Wallet</span>
-    </button>
-  )
-}
+      Connect Wallet
+    </Button>
+  );
+};
 
-export default WalletConnector
+export default WalletConnector;

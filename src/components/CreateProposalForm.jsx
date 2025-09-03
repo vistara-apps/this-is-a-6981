@@ -1,72 +1,85 @@
-import React, { useState } from 'react'
-import { ArrowLeft, Calendar, FileText, AlertCircle } from 'lucide-react'
-import { useProposals } from '../context/ProposalContext'
-import { useWallet } from '../context/WalletContext'
+import React, { useState } from 'react';
+import { ArrowLeft, Calendar, FileText, AlertCircle, Loader2 } from 'lucide-react';
+import { useProposals } from '../context/ProposalContext';
+import { useWallet } from '../context/WalletContext';
+import Button from './Button';
 
 const CreateProposalForm = ({ setCurrentView }) => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     duration: '7' // days
-  })
-  const [isCreating, setIsCreating] = useState(false)
-  const [errors, setErrors] = useState({})
+  });
+  const [isCreating, setIsCreating] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState(null);
   
-  const { createProposal } = useProposals()
-  const { isConnected, publicKey } = useWallet()
+  const { createProposal } = useProposals();
+  const { isConnected, publicKey } = useWallet();
 
   const validateForm = () => {
-    const newErrors = {}
+    const newErrors = {};
     
     if (!formData.title.trim()) {
-      newErrors.title = 'Title is required'
+      newErrors.title = 'Title is required';
     } else if (formData.title.length < 5) {
-      newErrors.title = 'Title must be at least 5 characters'
+      newErrors.title = 'Title must be at least 5 characters';
     }
     
     if (!formData.description.trim()) {
-      newErrors.description = 'Description is required'
+      newErrors.description = 'Description is required';
     } else if (formData.description.length < 20) {
-      newErrors.description = 'Description must be at least 20 characters'
+      newErrors.description = 'Description must be at least 20 characters';
     }
     
     if (!formData.duration || formData.duration < 1) {
-      newErrors.duration = 'Duration must be at least 1 day'
+      newErrors.duration = 'Duration must be at least 1 day';
     }
     
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
+    e.preventDefault();
     
-    if (!validateForm()) return
+    if (!validateForm()) return;
     
-    setIsCreating(true)
+    setIsCreating(true);
+    setSubmitError(null);
     
-    // Simulate blockchain transaction
-    await new Promise(resolve => setTimeout(resolve, 3000))
-    
-    const endTime = Date.now() + (parseInt(formData.duration) * 24 * 60 * 60 * 1000)
-    
-    await createProposal({
-      title: formData.title,
-      description: formData.description,
-      endTime,
-      proposer: publicKey
-    })
-    
-    setIsCreating(false)
-    setCurrentView('proposals')
-  }
+    try {
+      const endTime = Date.now() + (parseInt(formData.duration) * 24 * 60 * 60 * 1000);
+      
+      const result = await createProposal({
+        title: formData.title,
+        description: formData.description,
+        endTime,
+        proposer: publicKey
+      });
+      
+      if (result.success) {
+        setCurrentView('proposals');
+      } else {
+        setSubmitError(result.error || 'Failed to create proposal. Please try again.');
+      }
+    } catch (err) {
+      console.error('Error creating proposal:', err);
+      setSubmitError('An unexpected error occurred. Please try again.');
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   const handleChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
+    setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }))
+      setErrors(prev => ({ ...prev, [field]: '' }));
     }
-  }
+    if (submitError) {
+      setSubmitError(null);
+    }
+  };
 
   if (!isConnected) {
     return (
@@ -78,14 +91,15 @@ const CreateProposalForm = ({ setCurrentView }) => {
         <p className="text-text-secondary mb-8">
           You need to connect your wallet to create proposals
         </p>
-        <button
+        <Button
+          variant="primary"
+          size="lg"
           onClick={() => setCurrentView('dashboard')}
-          className="btn-primary px-6 py-3 rounded-lg text-white font-medium"
         >
           Go to Dashboard
-        </button>
+        </Button>
       </div>
-    )
+    );
   }
 
   return (
@@ -106,6 +120,13 @@ const CreateProposalForm = ({ setCurrentView }) => {
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="card p-6 space-y-6">
+        {/* Submit Error */}
+        {submitError && (
+          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-500 text-sm">
+            {submitError}
+          </div>
+        )}
+        
         {/* Title */}
         <div className="space-y-2">
           <label className="block text-sm font-medium text-text-primary">
@@ -118,6 +139,7 @@ const CreateProposalForm = ({ setCurrentView }) => {
             placeholder="Enter a clear, concise title for your proposal"
             className="w-full px-4 py-3 bg-surface/50 border border-surface/50 rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
             maxLength={100}
+            disabled={isCreating}
           />
           {errors.title && (
             <p className="text-red-400 text-sm flex items-center gap-1">
@@ -142,6 +164,7 @@ const CreateProposalForm = ({ setCurrentView }) => {
             rows={6}
             className="w-full px-4 py-3 bg-surface/50 border border-surface/50 rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all resize-y"
             maxLength={1000}
+            disabled={isCreating}
           />
           {errors.description && (
             <p className="text-red-400 text-sm flex items-center gap-1">
@@ -165,6 +188,7 @@ const CreateProposalForm = ({ setCurrentView }) => {
               value={formData.duration}
               onChange={(e) => handleChange('duration', e.target.value)}
               className="w-full pl-12 pr-4 py-3 bg-surface/50 border border-surface/50 rounded-lg text-text-primary focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
+              disabled={isCreating}
             >
               <option value="1">1 day</option>
               <option value="3">3 days</option>
@@ -194,24 +218,30 @@ const CreateProposalForm = ({ setCurrentView }) => {
 
         {/* Actions */}
         <div className="flex gap-4 pt-4">
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="lg"
             onClick={() => setCurrentView('proposals')}
-            className="flex-1 btn-secondary px-6 py-3 rounded-lg font-medium"
+            disabled={isCreating}
+            className="flex-1"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
+            variant="primary"
+            size="lg"
             disabled={isCreating}
-            className="flex-1 btn-primary px-6 py-3 rounded-lg font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            loading={isCreating}
+            className="flex-1"
           >
             {isCreating ? 'Creating Proposal...' : 'Create Proposal'}
-          </button>
+          </Button>
         </div>
       </form>
     </div>
-  )
-}
+  );
+};
 
-export default CreateProposalForm
+export default CreateProposalForm;
